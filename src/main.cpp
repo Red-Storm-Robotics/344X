@@ -1,15 +1,18 @@
 #include "main.h"
 
 Controller controller;
-MotorGroup leftDrive = MotorGroup({-1, -9});
-MotorGroup rightDrive = MotorGroup({2, 10});
+MotorGroup leftDrive = MotorGroup({1, 9});
+MotorGroup rightDrive = MotorGroup({-2, -10});
 auto drive = ChassisControllerFactory::create(leftDrive, rightDrive, AbstractMotor::gearset::green, {4.1_in, 11.5_in});
+
+bool highSpeed = false;
+ControllerButton toggleSpeed = ControllerButton(ControllerDigital::Y);
 
 MotorGroup intake = MotorGroup({3, -8});
 
 Motor trayTilter = Motor(5);
 
-bool tankDrive = true;
+bool tankDrive = false;
 bool enableAuton = true;
 
 void toggleDriveMode() {
@@ -39,18 +42,26 @@ ControllerButton intakeRev = ControllerButton(ControllerDigital::L2);
 
 int intakeMode = 0;
 
-ControllerButton trayStowed = ControllerButton(ControllerDigital::A);
-ControllerButton trayIntaking = ControllerButton(ControllerDigital::B);
+#define T_STOWED_POS 0
+#define T_INTAKING_POS 90
+#define T_TOWERING_POS 90
+#define T_STACKING_POS 520
+
+
+ControllerButton trayStowed = ControllerButton(ControllerDigital::B);
+ControllerButton trayIntaking = ControllerButton(ControllerDigital::A);
 ControllerButton trayStacking = ControllerButton(ControllerDigital::X);
-ControllerButton trayTowering = ControllerButton(ControllerDigital::Y);
+//ControllerButton trayTowering = ControllerButton(ControllerDigital::Y);
 
 ControllerButton trayManualUp = ControllerButton(ControllerDigital::R1);
 ControllerButton trayManualDown = ControllerButton(ControllerDigital::R2);
 
 bool trayManualMode = false;
 
-ControllerButton runDropRoutine = ControllerButton(ControllerDigital::right);
+//ControllerButton runDropRoutine = ControllerButton(ControllerDigital::right);
 
+
+ControllerButton autonomousTestBtn = ControllerButton(ControllerDigital::right);
 /**
 * Runs initialization code. This occurs as soon as the program is started.
 *
@@ -71,6 +82,14 @@ void initialize() {
 
 	pros::lcd::register_btn0_cb(toggleDriveMode);
     pros::lcd::register_btn1_cb(toggleAuton);
+
+    if (highSpeed) {
+        controller.setText(0, 0, "HIGH SPEED");
+    } else {
+        controller.setText(0, 0, "LOW  SPEED");
+    }
+
+    trayTilter.setBrakeMode(AbstractMotor::brakeMode::hold);
 }
 
 /**
@@ -139,8 +158,22 @@ void opcontrol() {
 			// Cubic Curving for better manuverability
 			speed = speed*speed*speed;
 			yaw = yaw*yaw*yaw;
+            yaw /= 2;
+
+            if (!highSpeed) {
+                speed *= 0.75;
+            }
 			drive.arcade(speed, yaw);
 		}
+
+        if (toggleSpeed.changedToPressed()) {
+            highSpeed = !highSpeed;
+            if (highSpeed) {
+                controller.setText(0, 0, "HIGH SPEED");
+            } else {
+                controller.setText(0, 0, "LOW  SPEED");
+            }
+        }
 
         // INTAKE
 
@@ -177,7 +210,7 @@ void opcontrol() {
         if (intakeMode == -1) {
             intake.moveVelocity(-50);
         } else if (intakeMode == 1) {
-            intake.moveVelocity(100);
+            intake.moveVelocity(200);
         } else {
             intake.moveVelocity(0);
         }
@@ -186,16 +219,16 @@ void opcontrol() {
         // TRAY TILTER
 
         if (trayStowed.changedToPressed()) {
-            trayTilter.moveAbsolute(0, 50);
+            trayTilter.moveAbsolute(T_STOWED_POS, 50);
             trayManualMode = false;
         } else if (trayIntaking.changedToPressed()) {
-            trayTilter.moveAbsolute(30, 50);
+            trayTilter.moveAbsolute(T_INTAKING_POS, 50);
             trayManualMode = false;
-        } else if (trayTowering.changedToPressed()) {
-            trayTilter.moveAbsolute(60, 50);
-            trayManualMode = false;
+        //} else if (trayTowering.changedToPressed()) {
+        //    trayTilter.moveAbsolute(T_TOWERING_POS, 50);
+        //    trayManualMode = false;
         } else if (trayStacking.changedToPressed()) {
-            trayTilter.moveAbsolute(90, 50);
+            trayTilter.moveAbsolute(T_STACKING_POS, 50);
             trayManualMode = false;
         } else if (trayManualUp.isPressed()) {
             trayTilter.moveVelocity(50);
@@ -208,7 +241,7 @@ void opcontrol() {
         }
 
         // AUTO DROP
-
+/*
         if (runDropRoutine.changedToPressed()) {
             drive.stop();
 
@@ -231,6 +264,10 @@ void opcontrol() {
             drive.moveDistance(-6_in);
             drive.waitUntilSettled();
 
+        }*/
+
+        if (autonomousTestBtn.changedToPressed()) {
+            autonomous();
         }
 
         pros::delay(20);
